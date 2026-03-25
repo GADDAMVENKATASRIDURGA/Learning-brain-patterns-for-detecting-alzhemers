@@ -2,12 +2,19 @@ import streamlit as st
 import numpy as np
 from tensorflow.keras.models import load_model
 from PIL import Image
+import gdown
+import os
+
+# ✅ Download model
+if not os.path.exists("cnn.h5"):
+    url = "https://drive.google.com/uc?id=10rWPrSDSD0t4kXo_IUAp9ijjNB2y1ILd"
+    gdown.download(url, "cnn.h5", quiet=False)
 
 st.title("Alzheimer MRI Detection")
 
 st.write("🔄 Loading model...")
 
-MODEL = load_model("model/cnn.h5")
+MODEL = load_model("cnn.h5")
 
 st.write("✅ Model loaded")
 
