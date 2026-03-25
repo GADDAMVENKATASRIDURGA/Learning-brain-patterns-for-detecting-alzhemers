@@ -49,54 +49,78 @@ from tensorflow.keras.models import load_model
 from PIL import Image
 import gdown
 import os
+from googletrans import Translator, LANGUAGES
 
-# ✅ Page settings
-st.set_page_config(page_title="Alzheimer Detection", layout="centered")
+# Page setup
+st.set_page_config(page_title="Brain Health Check", layout="centered")
 
-# ✅ Download model
-if not os.path.exists("cnn.h5"):
-    url = "https://drive.google.com/uc?id=10rWPrSDSD0t4kXo_IUAp9ijjNB2y1ILd"
-    gdown.download(url, "cnn.h5", quiet=False)
+# Language selection (200+ languages)
+translator = Translator()
+language_name = st.selectbox("🌍 Select Language", list(LANGUAGES.values()))
+lang_code = list(LANGUAGES.keys())[list(LANGUAGES.values()).index(language_name)]
 
-# ✅ Title
-st.title("🧠 Alzheimer MRI Detection")
-st.write("Upload an MRI scan to detect Alzheimer stage using AI.")
+# Translate function
+def translate_text(text):
+    try:
+        return translator.translate(text, dest=lang_code).text
+    except:
+        return text
 
-# ✅ Load model
-MODEL = load_model("cnn.h5", compile=False)
+# Title & description
+st.title(translate_text("🧠 Brain Health Check"))
+st.write(translate_text("Upload a brain MRI image to check memory condition."))
 
+# Download model if not exists
+MODEL_PATH = "cnn.h5"
+MODEL_URL = "https://drive.google.com/uc?id=10rWPrSDSD0t4kXo_IUAp9ijjNB2y1ILd"
+
+if not os.path.exists(MODEL_PATH):
+    with st.spinner(translate_text("Downloading model...")):
+        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+
+# Load model (cached)
+@st.cache_resource
+def load_my_model():
+    return load_model(MODEL_PATH, compile=False)
+
+MODEL = load_my_model()
+
+# Class labels
 CLASSES = ['MildDemented','ModerateDemented','NonDemented','VeryMildDemented']
 
-# ✅ File upload
-file = st.file_uploader("Choose an MRI Image", type=["jpg","png","jpeg"])
+# Upload image
+file = st.file_uploader(translate_text("Select Brain Image"), type=["jpg","png","jpeg"])
 
 if file is not None:
-    img = Image.open(file).convert("RGB").resize((128,128))
-    st.image(img, caption="Uploaded Image", width=300)
 
-    # Preprocess
-    img = np.array(img)/255.0
-    img = np.expand_dims(img, axis=0)
+    # Show image
+    img = Image.open(file).convert("RGB").resize((128,128))
+    st.image(img, caption=translate_text("Your Image"), width=300)
+
+    # Preprocess image
+    img_array = np.array(img)/255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
     # Predict
-    pred = MODEL.predict(img)
-    result = CLASSES[np.argmax(pred)]
+    with st.spinner(translate_text("Analyzing image...")):
+        pred = MODEL.predict(img_array)
 
-    # ✅ Confidence
+    result = CLASSES[np.argmax(pred)]
     confidence = np.max(pred) * 100
 
-    # ✅ Better output
+    # Simple result messages
     if result == "NonDemented":
-        st.success("🟢 Normal Brain\nNo disease found.")
-
+        msg = "Normal Brain. No disease found."
     elif result == "VeryMildDemented":
-        st.info("🟡 Very Early Stage\nSmall memory problems may start.")
-
+        msg = "Very Early Stage. Small memory problems may start."
     elif result == "MildDemented":
-        st.warning("🟠 Mild Stage\nMemory problems are noticeable.")
-
+        msg = "Mild Stage. Memory problems are noticeable."
     elif result == "ModerateDemented":
-        st.error("🔴 Serious Stage\nStrong memory and thinking problems.")
+        msg = "Serious Stage. Strong memory problems."
 
-    # ✅ Confidence display
-    st.info(f"Confidence: {confidence:.2f}%")
+    # Display result
+    st.subheader(translate_text("Result"))
+    st.write(translate_text(msg))
+
+    # Display confidence
+    st.write(f"{translate_text('Accuracy')}: {confidence:.2f}%")
