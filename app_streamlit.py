@@ -143,12 +143,11 @@ from PIL import Image
 import gdown
 import os
 from googletrans import Translator, LANGUAGES
-import time
 
-# ---------------- PAGE SETUP ---------------- #
+# ---------------- Page setup ----------------
 st.set_page_config(page_title="Brain Health Check", layout="centered")
 
-# Language selection
+# ---------------- Language selection ----------------
 translator = Translator()
 language_name = st.selectbox("🌍 Select Language", list(LANGUAGES.values()))
 lang_code = list(LANGUAGES.keys())[list(LANGUAGES.values()).index(language_name)]
@@ -159,82 +158,71 @@ def translate_text(text):
     except:
         return text
 
+# ---------------- Title & Description ----------------
 st.title(translate_text("🧠 Brain Health Check"))
 st.write(translate_text("Upload a brain MRI image to check memory condition."))
 
-# ---------------- DOWNLOAD MODELS ---------------- #
-def download_model(file_id, output):
-    if not os.path.exists(output):
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, output, quiet=False)
+# ---------------- Download models if not exists ----------------
+MODEL_DIR = "model"
+os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Google Drive IDs
-CNN_ID = "https://drive.google.com/file/d/1ElTwfxMzzl1yaGeRPpy_YYrGXyRD4NEV/view?usp=sharing"           # replace with your Google Drive ID
-VGG_ID = "https://drive.google.com/file/d/1ywWoScQeq1uULSmtsRwterh1ce0Wght2/view?usp=sharing"
-MOBILE_ID = "https://drive.google.com/file/d/1UlTnRkATQcwPOcq2awxPM_bZ6rk2ZIu0/view?usp=sharing"
-
-download_model(CNN_ID, "cnn.h5")
-download_model(VGG_ID, "vgg16.h5")
-download_model(MOBILE_ID, "mobilenet.h5")
-
-# ---------------- LOAD MODELS ---------------- #
-@st.cache_resource
-def load_all_models():
-    cnn = load_model("cnn.h5", compile=False)
-    vgg = load_model("vgg16.h5", compile=False)
-    mobile = load_model("mobilenet.h5", compile=False)
-    return cnn, vgg, mobile
-
-CNN_MODEL, VGG_MODEL, MOBILE_MODEL = load_all_models()
-
-# ---------------- MODEL ACCURACY ---------------- #
-# Update with your training accuracies
-model_accuracy = {
-    "CNN": 0.89,
-    "VGG16": 0.92,
-    "MobileNet": 0.90
+# Updated Google Drive model IDs
+models_info = {
+    "CNN": {
+        "file": os.path.join(MODEL_DIR, "cnn.h5"),
+        "url": "https://drive.google.com/uc?id=1ElTwfxMzzl1yaGeRPpy_YYrGXyRD4NEV"
+    },
+    "VGG16": {
+        "file": os.path.join(MODEL_DIR, "vgg16.h5"),
+        "url": "https://drive.google.com/uc?id=1ywWoScQeq1uULSmtsRwterh1ce0Wght2"
+    },
+    "MobileNet": {
+        "file": os.path.join(MODEL_DIR, "mobilenet.h5"),
+        "url": "https://drive.google.com/uc?id=1UlTnRkATQcwPOcq2awxPM_bZ6rk2ZIu0"
+    }
 }
 
-# ---------------- CLASS LABELS ---------------- #
+for name, info in models_info.items():
+    if not os.path.exists(info["file"]):
+        with st.spinner(translate_text(f"Downloading {name} model...")):
+            gdown.download(info["url"], info["file"], quiet=False)
+
+# ---------------- Load models ----------------
+@st.cache_resource
+def load_models():
+    loaded = {}
+    for name, info in models_info.items():
+        loaded[name] = load_model(info["file"], compile=False)
+    return loaded
+
+MODELS = load_models()
+
+# ---------------- Class labels ----------------
 CLASSES = ['MildDemented','ModerateDemented','NonDemented','VeryMildDemented']
 
-# ---------------- UPLOAD IMAGE ---------------- #
+# ---------------- Upload image ----------------
 file = st.file_uploader(translate_text("Select Brain Image"), type=["jpg","png","jpeg"])
 
 if file is not None:
-    img = Image.open(file).convert("RGB")
-    img_resized = img.resize((128,128))
-    st.image(img_resized, caption=translate_text("Your Image"), width=300)
+    img = Image.open(file).convert("RGB").resize((128,128))
+    st.image(img, caption=translate_text("Your Image"), width=300)
 
-    img_array = np.array(img_resized)/255.0
+    img_array = np.array(img)/255.0
     img_array = np.expand_dims(img_array, axis=0)
 
-    # ---------------- AUTO MODEL SELECTION ---------------- #
-    def select_best_model(img):
-        scores = {}
-        models = {
-            "CNN": CNN_MODEL,
-            "VGG16": VGG_MODEL,
-            "MobileNet": MOBILE_MODEL
-        }
-        for name, model in models.items():
-            start = time.time()
-            pred = model.predict(img)
-            end = time.time()
-            inference_time = end - start
-            score = model_accuracy[name] / inference_time
-            scores[name] = (score, pred)
-        best_model = max(scores, key=lambda x: scores[x][0])
-        return best_model, scores[best_model][1]
-
-    # Predict
+    # ---------------- Predict with all 3 models ----------------
     with st.spinner(translate_text("Analyzing image...")):
-        best_model, pred = select_best_model(img_array)
+        probs = []
+        for name, model in MODELS.items():
+            pred = model.predict(img_array)
+            probs.append(pred[0])
+        # Average probabilities (soft voting)
+        combined_prob = np.mean(np.array(probs), axis=0)
+        result_index = np.argmax(combined_prob)
+        result = CLASSES[result_index]
+        confidence = combined_prob[result_index] * 100
 
-    result = CLASSES[np.argmax(pred)]
-    confidence = np.max(pred) * 100
-
-    # ---------------- SIMPLE RESULT MESSAGES ---------------- #
+    # ---------------- Map to human-readable message ----------------
     if result == "NonDemented":
         msg = "Normal Brain. No disease found."
     elif result == "VeryMildDemented":
@@ -244,12 +232,13 @@ if file is not None:
     elif result == "ModerateDemented":
         msg = "Serious Stage. Strong memory problems."
 
+    # ---------------- Display result ----------------
     st.subheader(translate_text("Result"))
     st.write(translate_text(msg))
     st.write(f"{translate_text('Confidence')}: {confidence:.2f}%")
-    st.write(f"{translate_text('Model Used')}: {best_model}")
+    st.write(f"{translate_text('Model Used')}: Ensemble of CNN, VGG16, MobileNet")
 
-    # ---------------- PREDICTION PROBABILITIES ---------------- #
+    # ---------------- Display probability chart ----------------
     st.subheader(translate_text("Prediction Probabilities"))
-    prob_data = {CLASSES[i]: float(pred[0][i]) for i in range(len(CLASSES))}
+    prob_data = {CLASSES[i]: float(combined_prob[i]) for i in range(len(CLASSES))}
     st.bar_chart(prob_data)
