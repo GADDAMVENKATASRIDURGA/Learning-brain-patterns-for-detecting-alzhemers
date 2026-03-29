@@ -143,38 +143,33 @@ from PIL import Image
 import gdown
 import os
 from googletrans import Translator, LANGUAGES
-import time   # ✅ added
+import time
 
-# Page setup
+# ---------------- PAGE SETUP ---------------- #
 st.set_page_config(page_title="Brain Health Check", layout="centered")
 
-# Language selection (200+ languages)
+# Language selection
 translator = Translator()
 language_name = st.selectbox("🌍 Select Language", list(LANGUAGES.values()))
 lang_code = list(LANGUAGES.keys())[list(LANGUAGES.values()).index(language_name)]
 
-# Translate function
 def translate_text(text):
     try:
         return translator.translate(text, dest=lang_code).text
     except:
         return text
 
-# Title & description
 st.title(translate_text("🧠 Brain Health Check"))
 st.write(translate_text("Upload a brain MRI image to check memory condition."))
 
 # ---------------- DOWNLOAD MODELS ---------------- #
-
 def download_model(file_id, output):
     if not os.path.exists(output):
         url = f"https://drive.google.com/uc?id={file_id}"
         gdown.download(url, output, quiet=False)
 
-# CNN (existing)
-CNN_ID = "10rWPrSDSD0t4kXo_IUAp9ijjNB2y1ILd"
-
-# NEW models
+# Google Drive IDs
+CNN_ID = "YOUR_CNN_ID"           # replace with your Google Drive ID
 VGG_ID = "1jh8bxbTdq1xnkggNHD5r-K4_99LyP_nB"
 MOBILE_ID = "1xpDZelvjSAxRMRugqXARJgZANOe-WVRR"
 
@@ -183,7 +178,6 @@ download_model(VGG_ID, "vgg16.h5")
 download_model(MOBILE_ID, "mobilenet.h5")
 
 # ---------------- LOAD MODELS ---------------- #
-
 @st.cache_resource
 def load_all_models():
     cnn = load_model("cnn.h5", compile=False)
@@ -194,73 +188,53 @@ def load_all_models():
 CNN_MODEL, VGG_MODEL, MOBILE_MODEL = load_all_models()
 
 # ---------------- MODEL ACCURACY ---------------- #
-# ⚠️ MUST update with your real values
-
+# Update with your training accuracies
 model_accuracy = {
-    "CNN": 0.90,
+    "CNN": 0.89,
     "VGG16": 0.92,
-    "MobileNet": 0.89
+    "MobileNet": 0.90
 }
 
-# ---------------- AUTO MODEL FUNCTION ---------------- #
-
-def select_best_model(img128, img224):
-    scores = {}
-
-    models = {
-        "CNN": (CNN_MODEL, img128),
-        "VGG16": (VGG_MODEL, img224),
-        "MobileNet": (MOBILE_MODEL, img224)
-    }
-
-    for name, (model, input_img) in models.items():
-        start = time.time()
-        pred = model.predict(input_img)
-        end = time.time()
-
-        inference_time = end - start
-
-        score = model_accuracy[name] / inference_time
-
-        scores[name] = (score, pred)
-
-    best_model = max(scores, key=lambda x: scores[x][0])
-
-    return best_model, scores[best_model][1]
-
-# Class labels
+# ---------------- CLASS LABELS ---------------- #
 CLASSES = ['MildDemented','ModerateDemented','NonDemented','VeryMildDemented']
 
-# Upload image
+# ---------------- UPLOAD IMAGE ---------------- #
 file = st.file_uploader(translate_text("Select Brain Image"), type=["jpg","png","jpeg"])
 
 if file is not None:
-
-    # Show image
     img = Image.open(file).convert("RGB")
+    img_resized = img.resize((224,224))
+    st.image(img_resized, caption=translate_text("Your Image"), width=300)
 
-    img_128 = img.resize((128,128))
-    st.image(img_128, caption=translate_text("Your Image"), width=300)
+    img_array = np.array(img_resized)/255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
-    # Preprocess for CNN
-    img_array_128 = np.array(img_128)/255.0
-    img_array_128 = np.expand_dims(img_array_128, axis=0)
-
-    # Preprocess for VGG & MobileNet
-    img_224 = img.resize((224,224))
-    img_array_224 = np.array(img_224)/255.0
-    img_array_224 = np.expand_dims(img_array_224, axis=0)
+    # ---------------- AUTO MODEL SELECTION ---------------- #
+    def select_best_model(img):
+        scores = {}
+        models = {
+            "CNN": CNN_MODEL,
+            "VGG16": VGG_MODEL,
+            "MobileNet": MOBILE_MODEL
+        }
+        for name, model in models.items():
+            start = time.time()
+            pred = model.predict(img)
+            end = time.time()
+            inference_time = end - start
+            score = model_accuracy[name] / inference_time
+            scores[name] = (score, pred)
+        best_model = max(scores, key=lambda x: scores[x][0])
+        return best_model, scores[best_model][1]
 
     # Predict
     with st.spinner(translate_text("Analyzing image...")):
-
-        # ✅ AUTO MODEL SELECTION (only change)
-        best_model, pred = select_best_model(img_array_128, img_array_224)
+        best_model, pred = select_best_model(img_array)
 
     result = CLASSES[np.argmax(pred)]
     confidence = np.max(pred) * 100
 
-    # Simple result messages
+    # ---------------- SIMPLE RESULT MESSAGES ---------------- #
     if result == "NonDemented":
         msg = "Normal Brain. No disease found."
     elif result == "VeryMildDemented":
@@ -270,22 +244,12 @@ if file is not None:
     elif result == "ModerateDemented":
         msg = "Serious Stage. Strong memory problems."
 
-    # Display result
     st.subheader(translate_text("Result"))
     st.write(translate_text(msg))
+    st.write(f"{translate_text('Confidence')}: {confidence:.2f}%")
+    st.write(f"{translate_text('Model Used')}: {best_model}")
 
-    # Display confidence
-    st.write(f"{translate_text('Accuracy')}: {confidence:.2f}%")
-
-    # (Optional debug — does not affect UI meaning)
-    st.write(f"Model Used: {best_model}")
-
-    # Probability chart
+    # ---------------- PREDICTION PROBABILITIES ---------------- #
     st.subheader(translate_text("Prediction Probabilities"))
-
-    prob_data = {
-        CLASSES[i]: float(pred[0][i])
-        for i in range(len(CLASSES))
-    }
-
+    prob_data = {CLASSES[i]: float(pred[0][i]) for i in range(len(CLASSES))}
     st.bar_chart(prob_data)
