@@ -124,3 +124,12 @@ if file is not None:
 
     # Display confidence
     st.write(f"{translate_text('Accuracy')}: {confidence:.2f}%")
+     # Probability chart
+    st.subheader(translate_text("Prediction Probabilities"))
+
+    prob_data = {
+        CLASSES[i]: float(pred[0][i])
+        for i in range(len(CLASSES))
+    }
+
+    st.bar_chart(prob_data)
