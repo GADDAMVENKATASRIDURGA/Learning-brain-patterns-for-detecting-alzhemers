@@ -170,15 +170,15 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 models_info = {
     "CNN": {
         "file": os.path.join(MODEL_DIR, "cnn.h5"),
-        "url": "https://drive.google.com/uc?id=1ElTwfxMzzl1yaGeRPpy_YYrGXyRD4NEV"
+        "url": "https://drive.google.com/file/d/1ElTwfxMzzl1yaGeRPpy_YYrGXyRD4NEV"
     },
     "VGG16": {
         "file": os.path.join(MODEL_DIR, "vgg16.h5"),
-        "url": "https://drive.google.com/uc?id=1ywWoScQeq1uULSmtsRwterh1ce0Wght2"
+        "url": "https://drive.google.com/file/d/1ywWoScQeq1uULSmtsRwterh1ce0Wght2"
     },
     "MobileNet": {
         "file": os.path.join(MODEL_DIR, "mobilenet.h5"),
-        "url": "https://drive.google.com/uc?id=1UlTnRkATQcwPOcq2awxPM_bZ6rk2ZIu0"
+        "url": "https://drive.google.com/file/d/1UlTnRkATQcwPOcq2awxPM_bZ6rk2ZIu0"
     }
 }
 
