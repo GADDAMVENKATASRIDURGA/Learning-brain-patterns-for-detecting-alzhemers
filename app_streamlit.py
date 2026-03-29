@@ -203,7 +203,7 @@ file = st.file_uploader(translate_text("Select Brain Image"), type=["jpg","png",
 
 if file is not None:
     img = Image.open(file).convert("RGB")
-    img_resized = img.resize((224,224))
+    img_resized = img.resize((128,128))
     st.image(img_resized, caption=translate_text("Your Image"), width=300)
 
     img_array = np.array(img_resized)/255.0
