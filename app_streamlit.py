@@ -169,9 +169,9 @@ def download_model(file_id, output):
         gdown.download(url, output, quiet=False)
 
 # Google Drive IDs
-CNN_ID = "YOUR_CNN_ID"           # replace with your Google Drive ID
-VGG_ID = "1jh8bxbTdq1xnkggNHD5r-K4_99LyP_nB"
-MOBILE_ID = "1xpDZelvjSAxRMRugqXARJgZANOe-WVRR"
+CNN_ID = "https://drive.google.com/file/d/1ElTwfxMzzl1yaGeRPpy_YYrGXyRD4NEV/view?usp=sharing"           # replace with your Google Drive ID
+VGG_ID = "https://drive.google.com/file/d/1ywWoScQeq1uULSmtsRwterh1ce0Wght2/view?usp=sharing"
+MOBILE_ID = "https://drive.google.com/file/d/1UlTnRkATQcwPOcq2awxPM_bZ6rk2ZIu0/view?usp=sharing
 
 download_model(CNN_ID, "cnn.h5")
 download_model(VGG_ID, "vgg16.h5")
