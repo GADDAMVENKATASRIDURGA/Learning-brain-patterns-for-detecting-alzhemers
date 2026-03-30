@@ -158,44 +158,52 @@ def translate_text(text):
     except:
         return text
 
-# ---------------- Title & Description ----------------
+# ---------------- Title ----------------
 st.title(translate_text("🧠 Brain Health Check"))
 st.write(translate_text("Upload a brain MRI image to check memory condition."))
 
-# ---------------- Download models if not exists ----------------
+# ---------------- Model folder ----------------
 MODEL_DIR = "model"
 os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Updated Google Drive model IDs
+# ---------------- Model info (USE FILE IDs ONLY) ----------------
 models_info = {
     "CNN": {
         "file": os.path.join(MODEL_DIR, "cnn.h5"),
-        "url": "https://drive.google.com/file/d/14IV_Oiixmox5NJ8EjeEG3_tHeuSCuFZC"
+        "id": "14IV_Oiixmox5NJ8EjeEG3_tHeuSCuFZC"
     },
     "VGG16": {
         "file": os.path.join(MODEL_DIR, "vgg16.h5"),
-        "url": "https://drive.google.com/file/d/1IpMbk-H36jGS5BTxo82OeR6QRrpVsrRx"
+        "id": "1IpMbk-H36jGS5BTxo82OeR6QRrpVsrRx"
     },
     "MobileNet": {
         "file": os.path.join(MODEL_DIR, "mobilenet.h5"),
-        "url": "https://drive.google.com/file/d/1iDWSXxGbwTdYnxpCyV0x9dE92dO03CLy"
+        "id": "1iDWSXxGbwTdYnxpCyV0x9dE92dO03CLy"
     }
 }
 
-for name, info in models_info.items():
-    if not os.path.exists(info["file"]):
-        with st.spinner(translate_text(f"Downloading {name} model...")):
-            gdown.download(info["url"], info["file"], quiet=False)
-
-# ---------------- Load models ----------------
+# ---------------- Load + Download Models (CACHED) ----------------
 @st.cache_resource
 def load_models():
-    loaded = {}
-    for name, info in models_info.items():
-        loaded[name] = load_model(info["file"], compile=False)
-    return loaded
+    loaded_models = {}
 
-MODELS = load_models()
+    for name, info in models_info.items():
+        path = info["file"]
+
+        # Download only if not exists
+        if not os.path.exists(path):
+            with st.spinner(f"Downloading {name} model..."):
+                url = f"https://drive.google.com/uc?id={info['id']}"
+                gdown.download(url, path, quiet=False)
+
+        # Load model
+        loaded_models[name] = load_model(path, compile=False)
+
+    return loaded_models
+
+# ---------------- Load models ----------------
+with st.spinner("Loading AI models..."):
+    MODELS = load_models()
 
 # ---------------- Class labels ----------------
 CLASSES = ['MildDemented','ModerateDemented','NonDemented','VeryMildDemented']
@@ -210,19 +218,21 @@ if file is not None:
     img_array = np.array(img)/255.0
     img_array = np.expand_dims(img_array, axis=0)
 
-    # ---------------- Predict with all 3 models ----------------
+    # ---------------- Predict ----------------
     with st.spinner(translate_text("Analyzing image...")):
         probs = []
+
         for name, model in MODELS.items():
             pred = model.predict(img_array)
             probs.append(pred[0])
-        # Average probabilities (soft voting)
+
+        # Ensemble (average)
         combined_prob = np.mean(np.array(probs), axis=0)
         result_index = np.argmax(combined_prob)
         result = CLASSES[result_index]
         confidence = combined_prob[result_index] * 100
 
-    # ---------------- Map to human-readable message ----------------
+    # ---------------- Message ----------------
     if result == "NonDemented":
         msg = "Normal Brain. No disease found."
     elif result == "VeryMildDemented":
@@ -232,14 +242,13 @@ if file is not None:
     elif result == "ModerateDemented":
         msg = "Serious Stage. Strong memory problems."
 
-    # ---------------- Display result ----------------
+    # ---------------- Output ----------------
     st.subheader(translate_text("Result"))
     st.write(translate_text(msg))
     st.write(f"{translate_text('Confidence')}: {confidence:.2f}%")
-    st.write(f"{translate_text('Model Used')}: Ensemble of CNN, VGG16, MobileNet")
+    st.write(translate_text("Model Used: Ensemble of CNN, VGG16, MobileNet"))
 
-    # ---------------- Display probability chart ----------------
+    # ---------------- Chart ----------------
     st.subheader(translate_text("Prediction Probabilities"))
     prob_data = {CLASSES[i]: float(combined_prob[i]) for i in range(len(CLASSES))}
     st.bar_chart(prob_data)
-
